@@ -15,27 +15,36 @@ public class JwtUtil {
     @Autowired
     private JwtProperties jwtProperties;
 
+    // ✅ SAFE: prevent null secret crash
     private Key getSigningKey() {
-        return Keys.hmacShaKeyFor(jwtProperties.getSecret().getBytes());
+        String secret = jwtProperties.getSecret();
+
+        if (secret == null || secret.isEmpty()) {
+            throw new IllegalStateException(
+                "JWT secret is missing! Please set APP_JWT_SECRET in Render environment variables."
+            );
+        }
+
+        return Keys.hmacShaKeyFor(secret.getBytes());
     }
 
     // Generate token with username + role
     public String generateToken(String username, String role) {
         return Jwts.builder()
-            .setSubject(username)
-            .claim("role", role)
-            .setIssuedAt(new Date())
-            .setExpiration(new Date(System.currentTimeMillis() + jwtProperties.getExpiration()))
-            .signWith(getSigningKey(), SignatureAlgorithm.HS256)
-            .compact();
+                .setSubject(username)
+                .claim("role", role)
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + jwtProperties.getExpiration()))
+                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
+                .compact();
     }
 
-    // Extract username from token
+    // Extract username
     public String extractUsername(String token) {
         return getClaims(token).getSubject();
     }
 
-    // Extract role from token
+    // Extract role
     public String extractRole(String token) {
         return getClaims(token).get("role", String.class);
     }
@@ -50,11 +59,12 @@ public class JwtUtil {
         }
     }
 
+    // Parse token
     private Claims getClaims(String token) {
         return Jwts.parserBuilder()
-            .setSigningKey(getSigningKey())
-            .build()
-            .parseClaimsJws(token)
-            .getBody();
+                .setSigningKey(getSigningKey())
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
     }
 }
